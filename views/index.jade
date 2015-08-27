@@ -1,6 +1,8 @@
 extends layout
 
 block content
-	div
-		a(id='sender')='Send a Message'
-		ul(id='receiver')
+	button(id='toggleBeat') Start
+	div(id='tempoBox') Tempo: 
+		input(id="tempo", type="range", min="30.0", max="160.0", step="1", value="120", style="height: 20px; width: 200px;vertical-align: middle;")
+		span(id='showTempo') 120
+		|  BPM

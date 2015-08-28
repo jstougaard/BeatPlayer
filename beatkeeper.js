@@ -1,70 +1,95 @@
-var heartbeats = require('heartbeats');
-
-var heart = null;
-var currentBPM = 120;
-var rhythmPattern = [];
-var beatListeners = {};
-var noteResolution = 16;
+var events = require('events').EventEmitter,
+	heartbeats = require('heartbeats');
 
 var beatCount = 0;
 
-var isStarted = function() {
-	return heart !== null;
+var defaultOptions = {
+	bpm: 120,
+	noteResolution: 16,
+	pattern: []
 };
 
-var getHeartBeatTime = function() {
-	return Math.round(60*1000 / currentBPM / (noteResolution/4) );
+var getHeartBeatTime = function(bpm, resolution) {
+	return Math.round(60*1000 / bpm / (resolution/4) );
 };
 
-var onBeat = function(heartbeat) {
-	//console.log('Beat!');
+// Constructor
+function BeatKeeper(options) {
+	if (!(this instanceof BeatKeeper)) return new BeatKeeper(options);
+	this.setOptions(options);
+	
+	this._heart = null;
+	this._beatCount = 0;
+}
 
-	var isActive = !!rhythmPattern[beatCount];
+// Extend EventEmitter
+BeatKeeper.prototype = Object.create(events.prototype);
 
-	for (var key in beatListeners) {
-		beatListeners[key](isActive); // Parameter is if note is active
+
+BeatKeeper.prototype.setOptions = function(options){
+	if (!this.options)
+		this.options = defaultOptions;
+
+	for (var key in options){
+		this.options[key] = options[key];
 	}
 
-	beatCount++;
-	if (beatCount >= noteResolution) beatCount = 0;
+	return this;
 };
 
 
-module.exports.start = function(BPM) {
-	if (BPM)
-		currentBPM = BPM;
+// Event callback - only works if bind(this)
+function onBeat() {
+
+	// Is note active according to pattern
+	var isActive = !!this.options.pattern[this._beatCount];
+
+	// Emit event
+	this.emit('beat', isActive);
+
+	// Increment count
+	this._beatCount++;
+	if (this._beatCount >= this.options.noteResolution) 
+		this._beatCount = 0;
+}
+
+BeatKeeper.prototype.start = function() {
 
 	// Create heart for keeping time
-	heart = heartbeats.createHeart( getHeartBeatTime() );
+	this._heart = heartbeats.createHeart( this._getHeartBeatIntervalTime() );
 
-	// Listen to heartbeats
-	heart.createEvent(1, onBeat);
+	// Listen to heartbeats - listen to every pulse
+	this._heart.createEvent(1, onBeat.bind(this));
 
 };
 
-module.exports.stop = function() {
-	if (!heart) return; // TODO: Throw exception
-	heart.killAllEvents();
-	heart.kill();
-	heart = null;
+BeatKeeper.prototype.isStarted = function() {
+	return this._heart !== null;
 };
 
-module.exports.isStarted = isStarted;
 
-module.exports.setBPM = function(BPM) {
-	currentBPM = BPM;
-	if (heart)
-		heart.setHeartrate( getHeartBeatTime() );
+BeatKeeper.prototype.stop = function() {
+	if (!this.isStarted()) return;
+
+	this._heart.killAllEvents();
+	this._heart.kill();
+	this._heart = null;
 };
 
-module.exports.setRhythm = function(rhythm) {
-	rhythmPattern = rhythm;
+
+BeatKeeper.prototype.setBPM = function(bpm) {
+	this.options.bpm = bpm;
+	if (this.isStarted())
+		this._heart.setHeartrate( this._getHeartBeatIntervalTime() );
 };
 
-module.exports.addBeatListener = function(name, listener) {
-	beatListeners[name] = listener;
+BeatKeeper.prototype.setRhythmPattern = function(pattern) {
+	this.options.pattern = pattern;
 };
 
-module.exports.removeBeatListener = function(name) {
-	delete beatListeners[name];
+
+BeatKeeper.prototype._getHeartBeatIntervalTime = function() {
+	return Math.round(60*1000 / this.options.bpm / (this.options.noteResolution/4) );
 };
+
+module.exports = BeatKeeper;

@@ -3,7 +3,7 @@ var connect = require('connect')
     , express = require('express')
     , io = require('socket.io')
     , port = (process.env.PORT || 8081)
-    , beatkeeper = require('./beatkeeper');
+    , BeatKeeper = require('./BeatKeeper');
 
 //Setup Express
 var server = express.createServer();
@@ -42,19 +42,25 @@ server.listen( port);
 var io = io.listen(server);
 io.sockets.on('connection', function(socket){
   console.log('Client Connected');
+
+  var beatkeeper = new BeatKeeper();
   
   socket.on('start_beat', function(bpm) {
-    if (!beatkeeper.isStarted()) {
-      console.log("Starting Beat", bpm);
-      beatkeeper.start(parseInt(bpm,10));
-    }
+    if (beatkeeper.isStarted()) return;
+    
+    console.log("Starting Beat", bpm);
+    beatkeeper.setOptions({
+      bpm: parseInt(bpm,10)
+    }).start();
+
   });
 
   socket.on('stop_beat', function(value) {
-    if (beatkeeper.isStarted()) {
-      console.log("Stopping Beat", value);
-      beatkeeper.stop();
-    }
+    if (!beatkeeper.isStarted()) return;
+    
+    console.log("Stopping Beat", value);
+    beatkeeper.stop();
+    
   });
 
   socket.on('new_bpm', function(value) {
@@ -62,18 +68,18 @@ io.sockets.on('connection', function(socket){
     beatkeeper.setBPM(parseInt(value,10));
   });
 
-  socket.on('update_rhythm', function(data) {
-    console.log("Update rhytm", JSON.stringify(data));
-    beatkeeper.setRhythm(data);
+  socket.on('update_rhythm', function(pattern) {
+    console.log("Update rhytm", JSON.stringify(pattern));
+    beatkeeper.setRhythmPattern(pattern);
   });
 
   socket.on('disconnect', function(){
     console.log('Client Disconnected.');
-    beatkeeper.removeBeatListener('socketBeat');
+    beatkeeper.removeAllListeners();
   });
 
   // Broadcast on beat
-  beatkeeper.addBeatListener('socketBeat', function(isActive) {
+  beatkeeper.addListener('beat', function(isActive) {
     //socket.broadcast.emit('beat',isActive);
     socket.emit('beat',{isActive: isActive});
   });

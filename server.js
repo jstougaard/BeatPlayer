@@ -3,7 +3,8 @@ var connect = require('connect')
     , express = require('express')
     , io = require('socket.io')
     , port = (process.env.PORT || 8081)
-    , BeatKeeper = require('./BeatKeeper');
+    , BeatKeeper = require('./BeatKeeper')
+    , PDConnector = require('./TcpConnector');
 
 //Setup Express
 var server = express.createServer();
@@ -44,7 +45,9 @@ io.sockets.on('connection', function(socket){
   console.log('Client Connected');
 
   var beatkeeper = new BeatKeeper();
-  
+  var connector = new PDConnector(7778);
+  //console.log("Connector", connector);
+
   socket.on('start_beat', function(bpm) {
     if (beatkeeper.isStarted()) return;
     
@@ -80,7 +83,12 @@ io.sockets.on('connection', function(socket){
 
   // Broadcast on beat
   beatkeeper.addListener('beat', function(isActive) {
-    //socket.broadcast.emit('beat',isActive);
+
+    // Send to Pure Data
+    if (isActive)
+      connector.send("ping");
+
+    // Send to client
     socket.emit('beat',{isActive: isActive});
   });
 });
